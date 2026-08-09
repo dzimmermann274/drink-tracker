@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Drink Tracker</title>
+  <meta name="theme-color" content="#0d0d0d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Drinks">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Home -->
+    <section id="view-home" class="view active">
+      <div class="view-head">
+        <h1 class="home-h1" style="font-size:28px;letter-spacing:-0.3px">Drinks</h1>
+        <button id="btn-settings" class="icon-btn" aria-label="Settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>
+        </button>
+      </div>
+      <div class="view-body">
+        <div id="home-summary" class="summary-card"></div>
+        <nav class="home-nav">
+          <button class="big-btn" data-nav="log">
+            <span class="bi">🍸</span><span class="bt">Log Drink</span>
+            <span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </button>
+          <button class="big-btn" data-nav="history">
+            <span class="bi">📖</span><span class="bt">History</span>
+            <span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </button>
+          <button class="big-btn" data-nav="stats">
+            <span class="bi">📊</span><span class="bt">Statistics</span>
+            <span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </button>
+        </nav>
+        <div class="home-foot">All data stays on this device</div>
+      </div>
+    </section>
+
+    <!-- Log / search -->
+    <section id="view-log" class="view">
+      <div class="view-head">
+        <button class="back-btn" data-nav="home">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Back
+        </button>
+        <h1>Log Drink</h1>
+        <span style="width:64px"></span>
+      </div>
+      <div class="search-wrap">
+        <div class="search-box" id="search-boxwrap">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="search" type="text" placeholder="Search or create a drink…" autocomplete="off" autocorrect="off" enterkeyhint="search">
+          <button class="search-clear" id="search-clear" aria-label="Clear search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="view-body" id="log-list"></div>
+    </section>
+
+    <!-- History -->
+    <section id="view-history" class="view">
+      <div class="view-head">
+        <button class="back-btn" data-nav="home">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Back
+        </button>
+        <h1>History</h1>
+        <span style="width:64px"></span>
+      </div>
+      <div class="view-body" id="history-list"></div>
+    </section>
+
+    <!-- Statistics -->
+    <section id="view-stats" class="view">
+      <div class="view-head">
+        <button class="back-btn" data-nav="home">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Back
+        </button>
+        <h1>Statistics</h1>
+        <span style="width:64px"></span>
+      </div>
+      <div class="view-body" id="stats-body"></div>
+    </section>
+
+  </div>
+
+  <div id="backdrop" hidden></div>
+  <div id="sheet" class="sheet" hidden></div>
+  <div id="toast"><span class="tmsg"></span><button id="toast-undo">Undo</button></div>
+  <input type="file" id="file-import" accept=".json,application/json" hidden>
+
+  <script src="js/data.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -159,28 +159,42 @@ function quickLog(p) {
 
 /* ---------- Log sheet ---------- */
 function openLogSheet(p) {
-  openSheet(`
-    <div class="sheet-head">
-      <div class="sh-emoji">${catById(p.category).emoji}</div>
-      <div><h2>${esc(p.name)}</h2><div class="sub">${esc(profileMeta(p))}</div></div>
-    </div>
-    ${p.desc ? `<div class="sub" style="margin:0 0 4px">${esc(p.desc)}</div>` : ''}
-    <div class="frow">
-      <div class="field" style="flex:0 0 auto"><label>How many</label>
-        <div class="stepper"><button type="button" data-step="-1">−</button><span class="qv" id="f-qty">1</span><button type="button" data-step="1">+</button></div>
-      </div>
+  const fixed = isFixedServing(p) || p.oz == null;
+  const variants = p.variants && p.variants.length ? p.variants : null;
+  const whenField = `
       <div class="field"><label>When</label>
         <div class="seg" id="when-seg">
           <button type="button" class="on" data-when="now">Now</button>
           <button type="button" data-when="pick">Earlier</button>
         </div>
         <input type="datetime-local" id="f-at" value="${toLocalInput(Date.now())}" style="display:none;margin-top:8px">
-      </div>
+      </div>`;
+  const stepperField = `
+      <div class="field" style="flex:0 0 auto"><label>How many</label>
+        <div class="stepper"><button type="button" data-step="-1">−</button><span class="qv" id="f-qty">1</span><button type="button" data-step="1">+</button></div>
+      </div>`;
+  openSheet(`
+    <div class="sheet-head">
+      <div class="sh-emoji">${catById(p.category).emoji}</div>
+      <div><h2>${esc(p.name)}</h2><div class="sub">${esc(profileMeta(p))}</div></div>
     </div>
+    ${p.desc ? `<div class="sub" style="margin:0 0 4px">${esc(p.desc)}</div>` : ''}
+    ${p.ing && p.ing.length ? `<div class="sub" style="margin:0 0 4px">Contains: ${esc(p.ing.join(' · '))}</div>` : ''}
+    ${variants ? `<div class="field"><label>Liquor</label><div class="seg" id="variant-seg">
+      ${variants.map((v, i) => `<button type="button" data-variant="${esc(v)}" class="${i === 0 ? 'on' : ''}">${esc(v)}</button>`).join('')}
+    </div></div>` : ''}
+    ${fixed
+      ? `<div class="frow">${stepperField}${whenField}</div>`
+      : `<div class="frow">
+           <div class="field"><label>Ounces</label><input id="f-oz-main" type="number" step="0.5" min="0" inputmode="decimal" value="${p.oz}"></div>
+           ${stepperField}
+         </div>
+         <div class="hint" id="scale-hint" style="margin:-4px 2px 4px"></div>
+         ${whenField}`}
     <details class="adjust"><summary>Adjust this entry (optional)</summary>
       <div class="frow">
         <div class="field"><label>Std drinks</label><input id="f-std" type="number" step="0.1" min="0" inputmode="decimal" value="${p.std ?? ''}"></div>
-        <div class="field"><label>Ounces</label><input id="f-oz" type="number" step="0.5" min="0" inputmode="decimal" value="${p.oz ?? ''}"></div>
+        ${fixed ? `<div class="field"><label>Ounces</label><input id="f-oz" type="number" step="0.5" min="0" inputmode="decimal" value="${p.oz ?? ''}"></div>` : ''}
         <div class="field"><label>Calories</label><input id="f-cal" type="number" step="1" min="0" inputmode="numeric" value="${p.cal ?? ''}"></div>
       </div>
       <div class="field"><label>Note</label><input id="f-note" type="text" placeholder="Optional note for this entry"></div>
@@ -188,21 +202,39 @@ function openLogSheet(p) {
     </details>
     <button class="btn" id="do-log">Log drink</button>
   `);
+  // Ounce scaling: std/calories follow the pour size until manually overridden
+  const ozMain = $('#f-oz-main');
+  if (ozMain) {
+    const sync = () => {
+      const s = scaledForOz(p, num(ozMain.value));
+      $('#scale-hint').textContent =
+        `= ${s.std != null ? fmtStd(s.std) : '—'} std${s.cal != null ? ` · ${fmtInt(s.cal)} cal` : ''} each`;
+      if (!$('#f-std').dataset.dirty) $('#f-std').value = s.std ?? '';
+      if (!$('#f-cal').dataset.dirty) $('#f-cal').value = s.cal ?? '';
+    };
+    ozMain.addEventListener('input', sync);
+    sync();
+  }
+  $('#f-std').addEventListener('input', (ev) => { ev.target.dataset.dirty = '1'; });
+  $('#f-cal').addEventListener('input', (ev) => { ev.target.dataset.dirty = '1'; });
   $('#do-log').addEventListener('click', (ev) => {
     if (ev.currentTarget.disabled) return;
     ev.currentTarget.disabled = true;
     const qty = parseInt($('#f-qty').textContent, 10) || 1;
     const pick = $('#when-seg .on').dataset.when === 'pick';
     const at = pick ? fromLocalInput($('#f-at').value) : Date.now();
+    const variant = $('#variant-seg .on') ? $('#variant-seg .on').dataset.variant : null;
     const e = addEntry(p, {
       qty, at,
+      oz: ozMain ? num(ozMain.value) : num($('#f-oz').value),
       std: num($('#f-std').value),
-      oz: num($('#f-oz').value),
       cal: num($('#f-cal').value),
-      note: $('#f-note').value
+      note: $('#f-note').value,
+      name: variant ? `${variant} ${p.name}` : undefined,
+      ing: variant ? [variant] : undefined
     });
     closeSheet();
-    toast(`Logged ${qty > 1 ? qty + '× ' : ''}${p.name}`, () => { deleteEntry(e.id); render(current); });
+    toast(`Logged ${qty > 1 ? qty + '× ' : ''}${e.name}`, () => { deleteEntry(e.id); render(current); });
     render(current);
   });
 }
@@ -287,6 +319,7 @@ function openProfileSheet(p, prefillName) {
       </select></div>
     </div>
     <div class="field"><label>Description</label><input id="p-desc" type="text" value="${esc(isNew ? '' : (p.desc || ''))}" placeholder="Optional — brand, size, recipe…"></div>
+    <div class="field"><label>Ingredients</label><input id="p-ing" type="text" value="${esc(isNew ? '' : (p.ing || []).join(', '))}" placeholder="For mixed drinks — e.g. Vodka, Lemonade"></div>
     <div class="frow">
       <div class="field"><label>Std drinks</label><input id="p-std" type="number" step="0.1" min="0" inputmode="decimal" value="${isNew ? '1' : (p.std ?? '')}"></div>
       <div class="field"><label>Ounces</label><input id="p-oz" type="number" step="0.5" min="0" inputmode="decimal" value="${isNew ? '' : (p.oz ?? '')}"></div>
@@ -296,6 +329,7 @@ function openProfileSheet(p, prefillName) {
       <div class="field"><label>ABV %</label><input id="p-abv" type="number" step="0.1" min="0" inputmode="decimal" value="${isNew ? '' : (p.abv ?? '')}"></div>
     </div>
     <button class="link-btn" id="p-calc" type="button">Calculate std drinks from oz × ABV</button>
+    <div class="hint">Std drinks & calories describe one serving of the ounces above — logging a different pour scales them automatically (except shots & bombs).</div>
     <button class="btn" id="p-save">${isNew ? 'Save drink' : 'Save changes'}</button>
     ${isNew ? '' : '<button class="btn danger" id="p-del">Delete drink</button>'}
   `);
@@ -312,6 +346,7 @@ function openProfileSheet(p, prefillName) {
       name: $('#p-name').value.trim(),
       category: $('#p-cat').value,
       desc: $('#p-desc').value,
+      ing: $('#p-ing').value.split(',').map((s) => s.trim()).filter(Boolean),
       std: num($('#p-std').value),
       oz: num($('#p-oz').value),
       cal: num($('#p-cal').value),
@@ -524,6 +559,23 @@ function renderStats() {
       </div>`;
   }
 
+  // Ingredient tally across mixed drinks
+  if (s.byIng.length) {
+    const maxI = s.byIng[0].count;
+    html += `
+      <div class="chart-card">
+        <h3>Ingredients</h3><div class="ch-sub">what's inside your mixed drinks</div>
+        ${s.byIng.map((g) => `
+          <div class="top-row">
+            <div class="top-main">
+              <div class="top-name">${esc(g.name)}</div>
+              <div class="top-meter"><i style="width:${Math.max(4, Math.round((g.count / maxI) * 100))}%"></i></div>
+            </div>
+            <div class="top-val">in ×${g.count}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
   // Weekly pattern (only meaningful beyond a single week)
   if (statType !== 'week' && s.days >= 14) {
     const selW = selWd >= 0 && selWd < 7 ? s.weekday[selWd] : null;
@@ -628,6 +680,11 @@ function wire() {
   // Sheet-level delegation: steppers + when-segment (content is dynamic)
   $('#sheet').addEventListener('click', (ev) => {
     if (ev.target.closest('[data-close]')) { closeSheet(); return; }
+    const varBtn = ev.target.closest('[data-variant]');
+    if (varBtn) {
+      varBtn.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === varBtn));
+      return;
+    }
     const step = ev.target.closest('[data-step]');
     if (step) {
       const qv = $('#f-qty');

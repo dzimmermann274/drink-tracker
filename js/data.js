@@ -9,6 +9,7 @@ const CATEGORIES = [
   { id: 'spirits',  label: 'Spirits',  emoji: '🥃', slot: 4 },
   { id: 'seltzer',  label: 'Seltzer',  emoji: '🫧', slot: 5 },
   { id: 'cider',    label: 'Cider',    emoji: '🍏', slot: 6 },
+  { id: 'bomb',     label: 'Bomb',     emoji: '💣', slot: 8 },
   { id: 'other',    label: 'Other',    emoji: '🍹', slot: 7 }
 ];
 function catById(id) {
@@ -16,15 +17,43 @@ function catById(id) {
 }
 
 const STARTER_PROFILES = [
-  { name: 'Beer',         category: 'beer',     std: 1,   oz: 12,  cal: 150, abv: 5,    desc: 'Standard 12 oz lager or ale' },
-  { name: 'Light Beer',   category: 'beer',     std: 0.8, oz: 12,  cal: 100, abv: 4.2,  desc: '12 oz light beer' },
-  { name: 'IPA',          category: 'beer',     std: 1.3, oz: 12,  cal: 200, abv: 6.5,  desc: '12 oz IPA' },
-  { name: 'Red Wine',     category: 'wine',     std: 1.1, oz: 5,   cal: 125, abv: 13,   desc: '5 oz glass' },
-  { name: 'White Wine',   category: 'wine',     std: 1,   oz: 5,   cal: 120, abv: 12,   desc: '5 oz glass' },
-  { name: 'Cocktail',     category: 'cocktail', std: 1.5, oz: 6,   cal: 180, abv: null, desc: 'Average mixed drink' },
-  { name: 'Shot',         category: 'spirits',  std: 1,   oz: 1.5, cal: 100, abv: 40,   desc: '1.5 oz of 80-proof spirits' },
-  { name: 'Hard Seltzer', category: 'seltzer',  std: 1,   oz: 12,  cal: 100, abv: 5,    desc: '12 oz can' }
+  { name: 'Coors Light',       category: 'beer',     std: 0.8, oz: 12,  cal: 102, abv: 4.2,  desc: 'Facts per 12 oz — other pours scale' },
+  { name: 'Miller Lite',       category: 'beer',     std: 0.8, oz: 12,  cal: 96,  abv: 4.2,  desc: 'Facts per 12 oz' },
+  { name: 'Yuengling',         category: 'beer',     std: 0.9, oz: 12,  cal: 141, abv: 4.5,  desc: 'Traditional Lager — facts per 12 oz' },
+  { name: 'Miller High Life',  category: 'beer',     std: 0.9, oz: 12,  cal: 141, abv: 4.6,  desc: 'Facts per 12 oz' },
+  { name: 'Guinness',          category: 'beer',     std: 0.8, oz: 12,  cal: 125, abv: 4.2,  desc: 'Draught — facts per 12 oz' },
+  { name: 'Red Wine',          category: 'wine',     std: 1.1, oz: 5,   cal: 125, abv: 13,   desc: '5 oz glass — other pours scale' },
+  { name: 'White Wine',        category: 'wine',     std: 1,   oz: 5,   cal: 120, abv: 12,   desc: '5 oz glass — other pours scale' },
+  { name: 'Vegas Bomb',        category: 'bomb',     std: 0.7, oz: 5,   cal: 160, abv: null, desc: 'Crown & peach schnapps dropped in Red Bull',
+    ing: ['Crown Royal', 'Peach schnapps', 'Red Bull', 'Cranberry juice'] },
+  { name: 'Vodka Lemonade',    category: 'cocktail', std: 1,   oz: 8,   cal: 190, abv: null, desc: 'Single — 1.5 oz vodka + lemonade',
+    ing: ['Vodka', 'Lemonade'] },
+  { name: 'Shot',              category: 'spirits',  std: 1,   oz: 1.5, cal: 100, abv: 40,   desc: '1.5 oz — pick the liquor when logging',
+    variants: ['Vodka', 'Tequila', 'Whiskey', 'Rum', 'Gin'] },
+  { name: 'Jägermeister Shot', category: 'spirits',  std: 0.9, oz: 1.5, cal: 155, abv: 35,   desc: '1.5 oz shot',
+    ing: ['Jägermeister'] },
+  { name: 'Surfside',          category: 'seltzer',  std: 0.9, oz: 12,  cal: 100, abv: 4.5,  desc: 'Iced Tea + Vodka, 12 oz can',
+    ing: ['Vodka', 'Iced tea'] },
+  { name: 'High Noon',         category: 'seltzer',  std: 0.9, oz: 12,  cal: 100, abv: 4.5,  desc: '12 oz can',
+    ing: ['Vodka', 'Seltzer', 'Fruit juice'] }
 ];
+
+/* v1 starter names — replaced by the list above via a one-time migration */
+const OLD_STARTER_NAMES = ['Beer', 'Light Beer', 'IPA', 'Red Wine', 'White Wine', 'Cocktail', 'Shot', 'Hard Seltzer'];
+
+/* Shots and bombs are fixed servings; everything else scales by ounces poured. */
+function isFixedServing(p) {
+  return p.category === 'spirits' || p.category === 'bomb';
+}
+function scaledForOz(profile, oz) {
+  const base = profile.oz;
+  if (!base || !oz) return { std: profile.std, cal: profile.cal };
+  const f = oz / base;
+  return {
+    std: profile.std == null ? null : Math.round(profile.std * f * 10) / 10,
+    cal: profile.cal == null ? null : Math.round(profile.cal * f)
+  };
+}
 
 /* ---------- Persistence: IndexedDB primary, localStorage mirror ---------- */
 const DB_NAME = 'drink-tracker';
@@ -92,7 +121,20 @@ async function loadState() {
     state = blankState();
   }
   if (!state.settings) state.settings = {};
+  migrateStartersV2();
   return state;
+}
+
+/* One-time: swap v1 starter profiles for the v2 list (history keeps its snapshots). */
+function migrateStartersV2() {
+  if (state.settings.starterV2) return;
+  state.settings.starterV2 = true;
+  const had = state.profiles.some((p) => OLD_STARTER_NAMES.includes(p.name));
+  if (had) {
+    state.profiles = state.profiles.filter((p) => !OLD_STARTER_NAMES.includes(p.name));
+    seedStarters();
+  }
+  saveState();
 }
 
 let saveTimer = null;
@@ -160,6 +202,8 @@ function createProfile(data) {
     oz: data.oz ?? null,
     cal: data.cal ?? null,
     abv: data.abv ?? null,
+    ing: Array.isArray(data.ing) ? data.ing.map((s) => String(s).trim()).filter(Boolean) : [],
+    variants: Array.isArray(data.variants) && data.variants.length ? data.variants.map(String) : null,
     createdAt: now,
     updatedAt: now
   };
@@ -232,6 +276,7 @@ function addEntry(profile, opts = {}) {
     std: opts.std !== undefined ? opts.std : profile.std,
     oz: opts.oz !== undefined ? opts.oz : profile.oz,
     cal: opts.cal !== undefined ? opts.cal : profile.cal,
+    ing: Array.isArray(opts.ing) ? opts.ing : (Array.isArray(profile.ing) ? profile.ing.slice() : []),
     note: String(opts.note ?? '').trim(),
     createdAt: now,
     updatedAt: now
@@ -473,6 +518,21 @@ function periodStats(type, offset) {
   }
   const byDrink = [...byDrinkMap.values()].sort((a, b) => (b.count - a.count) || (b.std - a.std)).slice(0, 5);
 
+  // Ingredient tally across mixed drinks (an ingredient counts once per drink containing it)
+  const byIngMap = new Map();
+  for (const e of list) {
+    for (const raw of (e.ing || [])) {
+      const name = String(raw).trim();
+      if (!name) continue;
+      const k = name.toLowerCase();
+      const d = byIngMap.get(k) || { name, count: 0, std: 0 };
+      d.count += e.qty || 1;
+      d.std += (e.std || 0) * (e.qty || 1);
+      byIngMap.set(k, d);
+    }
+  }
+  const byIng = [...byIngMap.values()].sort((a, b) => (b.count - a.count) || (b.std - a.std)).slice(0, 8);
+
   // Weekday pattern (avg std per weekday over elapsed days)
   const wdTotals = new Array(7).fill(0);
   const wdDays = new Array(7).fill(0);
@@ -491,7 +551,7 @@ function periodStats(type, offset) {
 
   return {
     range, label, list, drinks, std, cal, days, zeroDays, drinkDays,
-    avgPerDay: std / days, buckets, bucketUnit, byCat, byDrink, weekday
+    avgPerDay: std / days, buckets, bucketUnit, byCat, byDrink, byIng, weekday
   };
 }
 
@@ -520,6 +580,8 @@ async function importJSON(text) {
     oz: num(p.oz),
     cal: num(p.cal),
     abv: num(p.abv),
+    ing: Array.isArray(p.ing) ? p.ing.map((s) => String(s).trim()).filter(Boolean) : [],
+    variants: Array.isArray(p.variants) && p.variants.length ? p.variants.map(String) : null,
     createdAt: Number(p.createdAt) || Date.now(),
     updatedAt: Number(p.updatedAt) || Date.now()
   });
@@ -533,6 +595,7 @@ async function importJSON(text) {
     std: num(e.std),
     oz: num(e.oz),
     cal: num(e.cal),
+    ing: Array.isArray(e.ing) ? e.ing.map((s) => String(s).trim()).filter(Boolean) : [],
     note: String(e.note || ''),
     createdAt: Number(e.createdAt) || Date.now(),
     updatedAt: Number(e.updatedAt) || Date.now()

@@ -1,5 +1,5 @@
 /* Drink Tracker service worker — network-first with full offline fallback. */
-const VERSION = 'v1.0.1';
+const VERSION = 'v1.1.0';
 const CACHE = `drinks-${VERSION}`;
 const ASSETS = [
   './',
